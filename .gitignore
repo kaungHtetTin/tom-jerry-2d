@@ -1,0 +1,45 @@
+# Track only the PHP server and its supporting files.
+/*
+!/.gitignore
+!/.env.example
+!/.htaccess
+!/app/
+!/bin/
+!/bootstrap/
+!/config/
+!/database/
+!/framework/
+!/migrations/
+!/routes/
+!/public/
+!/storage/
+!/tests/
+
+# Public server entry points and PHP starter assets; exclude React builds.
+/public/*
+!/public/.htaccess
+!/public/index.php
+!/public/router.php
+!/public/assets/
+
+# Preserve runtime directories without committing their contents or credentials.
+/storage/*
+!/storage/cache/
+!/storage/logs/
+/storage/cache/*
+/storage/logs/*
+!/storage/cache/.gitkeep
+!/storage/logs/.gitkeep
+
+# Keep backend tests and fixtures only.
+/tests/*
+!/tests/api.test.mjs
+!/tests/lottery.test.mjs
+!/tests/lottery-fixture.php
+!/tests/verify-seeder.php
+
+# Local environment files remain private, including within server directories.
+**/.env
+**/.env.*
+!/.env.example
+*.log

@@ -1,0 +1,166 @@
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/bootstrap/app.php';
+
+use Mini\Database;
+
+$command = $argv[1] ?? 'help';
+$databaseName = (string) env('DB_DATABASE', 'mini_app');
+
+function ensureDatabase(string $databaseName): void
+{
+    if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $databaseName)) {
+        throw new InvalidArgumentException('DB_DATABASE must be a valid SQL identifier.');
+    }
+    $pdo = Database::connection(true);
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$databaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo = Database::connection();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS migrations (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, migration VARCHAR(255) NOT NULL UNIQUE, batch INT NOT NULL, migrated_at DATETIME NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+function migrationFiles(): array
+{
+    $files = glob(BASE_PATH . '/migrations/*.php') ?: [];
+    sort($files);
+    return $files;
+}
+
+try {
+    if ($command === 'new') {
+        \Mini\Starter::create($argv[2] ?? '');
+        exit(0);
+    }
+
+    if ($command === 'admin:create' || $command === 'admin:reset-password') {
+        ensureDatabase($databaseName);
+        $admin = Database::fetch('SELECT id FROM lottery_admin WHERE id = 1');
+        if ($admin && $command === 'admin:create') {
+            echo "The single admin already exists. No changes made.\n";
+            exit(0);
+        }
+        if (!$admin && $command === 'admin:reset-password') {
+            throw new RuntimeException('Create the admin first with admin:create.');
+        }
+        $password = (string) env('ADMIN_INITIAL_PASSWORD', '');
+        if ($password === '') $password = bin2hex(random_bytes(12));
+        if (strlen($password) < 12 || strlen($password) > 72) {
+            throw new RuntimeException('The admin password must contain 12 to 72 bytes.');
+        }
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        $now = date('Y-m-d H:i:s');
+        if ($admin) {
+            Database::statement('UPDATE lottery_admin SET password_hash = ?, auth_version = auth_version + 1, updated_at = ? WHERE id = 1', [$hash, $now]);
+        } else {
+            Database::insert('lottery_admin', ['id' => 1, 'username' => 'admin', 'password_hash' => $hash, 'updated_at' => $now]);
+        }
+        if (env('APP_ENV') !== 'testing') {
+            $file = BASE_PATH . '/storage/initial-admin.txt';
+            $loginUrl = env('APP_URL') ? rtrim((string) env('APP_URL'), '/') . '/admin/login' : '/admin/login (relative to the application URL)';
+            file_put_contents($file, "Myanmar 2D administrator\nUsername: admin\nPassword: {$password}\nLogin: {$loginUrl}\n\nChange this password in Admin > Settings after signing in.\n", LOCK_EX);
+            @chmod($file, 0600);
+            echo "Admin ready. One-time credentials: storage/initial-admin.txt\n";
+        } else {
+            echo "Test admin ready.\n";
+        }
+        exit(0);
+    }
+
+    if ($command === 'migrate' || $command === 'migrate:fresh') {
+        ensureDatabase($databaseName);
+        $pdo = Database::connection();
+        if ($command === 'migrate:fresh') {
+            $tables = $pdo->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'")->fetchAll(PDO::FETCH_COLUMN);
+            $foreignKeyChecks = (int) $pdo->query('SELECT @@SESSION.FOREIGN_KEY_CHECKS')->fetchColumn();
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+            try {
+                foreach ($tables as $table) {
+                    $quoted = '`' . str_replace('`', '``', $table) . '`';
+                    $pdo->exec("DROP TABLE {$quoted}");
+                    echo "DROP  {$table}\n";
+                }
+            } finally {
+                $pdo->exec("SET FOREIGN_KEY_CHECKS = {$foreignKeyChecks}");
+            }
+            ensureDatabase($databaseName);
+        }
+        $applied = $pdo->query('SELECT migration FROM migrations')->fetchAll(PDO::FETCH_COLUMN);
+        $batch = (int) $pdo->query('SELECT COALESCE(MAX(batch), 0) + 1 FROM migrations')->fetchColumn();
+        $count = 0;
+        foreach (migrationFiles() as $file) {
+            $name = basename($file);
+            if (in_array($name, $applied, true)) {
+                echo "SKIP  {$name}\n";
+                continue;
+            }
+            $migration = require $file;
+            try {
+                foreach ($migration['up'] as $sql) {
+                    $pdo->exec($sql);
+                }
+                $stmt = $pdo->prepare('INSERT INTO migrations (migration, batch, migrated_at) VALUES (?, ?, NOW())');
+                $stmt->execute([$name, $batch]);
+                echo "DONE  {$name}\n";
+                $count++;
+            } catch (Throwable $e) {
+                throw $e;
+            }
+        }
+        echo $count ? "Applied {$count} migration(s).\n" : "Database is up to date.\n";
+        exit(0);
+    }
+
+    if ($command === 'migrate:status') {
+        ensureDatabase($databaseName);
+        $applied = Database::fetchPairs('SELECT migration, batch FROM migrations ORDER BY migration');
+        foreach (migrationFiles() as $file) {
+            $name = basename($file);
+            echo str_pad(isset($applied[$name]) ? 'YES' : 'NO', 6) . str_pad($name, 40) . ($applied[$name] ?? '-') . "\n";
+        }
+        exit(0);
+    }
+
+    if ($command === 'migrate:rollback') {
+        ensureDatabase($databaseName);
+        $batch = (int) Database::fetchValue('SELECT COALESCE(MAX(batch), 0) FROM migrations');
+        if ($batch === 0) {
+            echo "Nothing to roll back.\n";
+            exit(0);
+        }
+        $rows = Database::fetchAll('SELECT migration FROM migrations WHERE batch = ? ORDER BY id DESC', [$batch]);
+        foreach ($rows as $row) {
+            $file = BASE_PATH . '/migrations/' . $row['migration'];
+            $migration = require $file;
+            foreach ($migration['down'] as $sql) {
+                Database::connection()->exec($sql);
+            }
+            Database::statement('DELETE FROM migrations WHERE migration = ?', [$row['migration']]);
+            echo "ROLLBACK  {$row['migration']}\n";
+        }
+        exit(0);
+    }
+
+    if ($command === 'db:seed') {
+        ensureDatabase($databaseName);
+        $seed = BASE_PATH . '/database/seed.php';
+        if (!is_file($seed)) {
+            throw new RuntimeException('No database/seed.php has been defined.');
+        }
+        require $seed;
+        exit(0);
+    }
+
+    echo "Mini PHP console\n\n";
+    echo "  php bin/console new <directory>\n";
+    echo "  php bin/console migrate\n";
+    echo "  php bin/console migrate:fresh  (drops all tables and reruns migrations)\n";
+    echo "  php bin/console migrate:status\n";
+    echo "  php bin/console migrate:rollback\n";
+    echo "  php bin/console db:seed\n";
+    echo "  php bin/console admin:create\n";
+    echo "  php bin/console admin:reset-password\n";
+} catch (Throwable $e) {
+    fwrite(STDERR, "ERROR: {$e->getMessage()}\n");
+    exit(1);
+}
