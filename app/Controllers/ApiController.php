@@ -15,6 +15,7 @@ final class ApiController extends Controller
             'status' => 'ok',
             'app' => config('app.name'),
             'serverTime' => date(DATE_ATOM),
+            'timezone' => date_default_timezone_get(),
         ]);
     }
 

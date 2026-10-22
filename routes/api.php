@@ -5,6 +5,7 @@ use App\Controllers\LotteryController as Lottery;
 
 // Same PHP sessions and CSRF protection as web routes; no database required.
 $router->get('/api/health', [ApiController::class, 'health']);
+$router->get('/health', [ApiController::class, 'health']);
 $router->get('/api/session', [Lottery::class, 'session']);
 $router->post('/api/welcome', [ApiController::class, 'welcome']);
 

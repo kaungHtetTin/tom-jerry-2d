@@ -44,9 +44,9 @@ try {
             throw new RuntimeException('Create the admin first with admin:create.');
         }
         $password = (string) env('ADMIN_INITIAL_PASSWORD', '');
-        if ($password === '') $password = bin2hex(random_bytes(12));
-        if (strlen($password) < 12 || strlen($password) > 72) {
-            throw new RuntimeException('The admin password must contain 12 to 72 bytes.');
+        if ($password === '') $password = 'password';
+        if (strlen($password) < 8 || strlen($password) > 72) {
+            throw new RuntimeException('The admin password must contain 8 to 72 bytes.');
         }
         $hash = password_hash($password, PASSWORD_DEFAULT);
         $now = date('Y-m-d H:i:s');

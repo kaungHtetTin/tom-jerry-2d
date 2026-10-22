@@ -52,9 +52,9 @@ final class LotterySeeder
             $adminCreated = false;
             if (!DB::fetch('SELECT id FROM lottery_admin WHERE id = 1')) {
                 $initialPassword = (string) env('ADMIN_INITIAL_PASSWORD', '');
-                if ($initialPassword === '') $initialPassword = bin2hex(random_bytes(12));
-                if (strlen($initialPassword) < 12 || strlen($initialPassword) > 72) {
-                    throw new \RuntimeException('The initial admin password must contain 12 to 72 bytes.');
+                if ($initialPassword === '') $initialPassword = 'password';
+                if (strlen($initialPassword) < 8 || strlen($initialPassword) > 72) {
+                    throw new \RuntimeException('The initial admin password must contain 8 to 72 bytes.');
                 }
                 DB::insert('lottery_admin', ['id' => 1, 'username' => 'admin', 'password_hash' => password_hash($initialPassword, PASSWORD_DEFAULT), 'updated_at' => $now]);
                 $adminCreated = true;

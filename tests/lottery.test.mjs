@@ -406,7 +406,7 @@ test("weekly seeding is repeatable, preserves data and provisions only a missing
   assert.deepEqual(checks.times, ["08:00", "10:00", "12:00", "14:00", "16:00"]);
   assert.equal(checks.days, 7);
   for (const key of ["repeatCountUnchanged", "fivePerDay", "historicalOnly", "manualCorrectionPreserved",
-    "originalResultsPreserved", "existingAdminPreserved", "missingAdminCreated", "singleAdmin", "localCredentialsUntouched"]) {
+    "originalResultsPreserved", "existingAdminPreserved", "missingAdminCreated", "defaultAdminCredentials", "singleAdmin", "localCredentialsUntouched"]) {
     assert.equal(checks[key], true, key);
   }
 });

@@ -50,6 +50,13 @@ $created = LotterySeeder::run();
 $newAdmin = DB::fetch('SELECT * FROM lottery_admin WHERE id = 1');
 $checks['missingAdminCreated'] = $created['adminCreated'] && $newAdmin['username'] === 'admin'
     && password_verify((string) env('ADMIN_INITIAL_PASSWORD'), $newAdmin['password_hash']);
+// Verify the requested default credentials independently of test environment overrides.
+DB::statement('DELETE FROM lottery_admin WHERE id = 1');
+$_ENV['ADMIN_INITIAL_PASSWORD'] = '';
+$defaultCreated = LotterySeeder::run();
+$defaultAdmin = DB::fetch('SELECT * FROM lottery_admin WHERE id = 1');
+$checks['defaultAdminCredentials'] = $defaultCreated['adminCreated'] && $defaultAdmin['username'] === 'admin'
+    && password_verify('password', $defaultAdmin['password_hash']);
 $checks['singleAdmin'] = (int) DB::fetchValue('SELECT COUNT(*) FROM lottery_admin') === 1;
 $checks['localCredentialsUntouched'] = $credentialsExist === is_file(BASE_PATH . '/storage/initial-admin.txt');
 echo json_encode($checks, JSON_THROW_ON_ERROR) . PHP_EOL;

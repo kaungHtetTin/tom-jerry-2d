@@ -85,12 +85,20 @@ function post(body, auth = {}, contentType = "application/json") {
 }
 
 test("health responds with JSON without a database", async () => {
-  const response = await fetch(`${origin}/api/health`);
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type"), /application\/json/);
-  const data = await response.json();
-  assert.equal(data.status, "ok");
-  assert.match(data.serverTime, /\+06:30$/);
+  for (const path of ["/health", "/api/health"]) {
+    const response = await fetch(`${origin}${path}`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type"), /application\/json/);
+    assert.match(response.headers.get("cache-control"), /no-store/);
+    const data = await response.json();
+    assert.equal(data.status, "ok");
+    assert.equal(data.timezone, "Asia/Yangon");
+    assert.match(data.serverTime, /\+06:30$/);
+
+    const head = await fetch(`${origin}${path}`, { method: "HEAD" });
+    assert.equal(head.status, 200);
+    assert.equal(await head.text(), "");
+  }
 });
 
 test("API responses allow any origin, including error responses", async () => {
