@@ -108,6 +108,7 @@ test("public readers need no authentication and receive no admin secrets", async
 test("all admin operations reject anonymous requests", async () => {
   for (const [method, path, data] of [
     ["GET", "admin/schedules"],
+    ["GET", "admin/results"],
     ["POST", "admin/results", {}],
     ["PUT", "admin/results/1", {}],
     ["DELETE", "admin/results/1"],
@@ -189,7 +190,7 @@ test("schedule CRUD validates times and rejects duplicates", async () => {
     404,
   );
 });
-test("future publication and invalid dates or non-two-digit numbers are blocked", async () => {
+test("invalid dates or non-two-digit numbers are blocked", async () => {
   for (const number of ["1", "123", "ab", 7, null, "၁၂", "01\n"]) {
     assert.equal(
       (
@@ -202,7 +203,7 @@ test("future publication and invalid dates or non-two-digit numbers are blocked"
       422,
     );
   }
-  for (const date of ["2026-02-30", "tomorrow", "2026-10-23"]) {
+  for (const date of ["2026-02-30", "tomorrow"]) {
     assert.equal(
       (
         await admin("POST", "admin/results", {
@@ -214,16 +215,30 @@ test("future publication and invalid dates or non-two-digit numbers are blocked"
       422,
     );
   }
-  assert.equal(
-    (
-      await admin("POST", "admin/results", {
-        date: "2026-10-22",
-        scheduleId: schedules[2].id,
-        number: "60",
-      })
-    ).status,
-    422,
-  );
+});
+
+test("advance results stay private, remain editable, and release exactly when due", async () => {
+  for (const date of ["2026-10-22", "2026-10-23"]) {
+    const created = await admin("POST", "admin/results", {
+      date, scheduleId: schedules[2].id, number: "07",
+    });
+    assert.equal(created.status, 201);
+    const result = created.data.result;
+    assert.equal(result.publishedAt, `${date}T19:00:00+06:30`);
+    assert.equal((await client()("GET", `results/${result.id}`)).status, 404);
+    assert.deepEqual((await client()("GET", `results?date=${date}`)).data.results, []);
+    assert.equal((await admin("GET", `admin/results?date=${date}`)).data.results[0].number, "07");
+    assert.equal((await admin("POST", "admin/results", {
+      date, scheduleId: schedules[2].id, number: "99",
+    })).status, 409);
+    assert.equal((await admin("PUT", `admin/results/${result.id}`, { number: "00" })).status, 200);
+    assert.equal((await client()("GET", `results/${result.id}`)).status, 404);
+    if (date === "2026-10-23") {
+      assert.ok(JSON.parse(php("tests/lottery-fixture.php", "verify-release", String(result.id))).every(Boolean));
+    }
+    assert.equal((await admin("DELETE", `admin/results/${result.id}`)).status, 200);
+    assert.deepEqual((await admin("GET", `admin/results?date=${date}`)).data.results, []);
+  }
 });
 test("5PM publication produces a one-result cumulative snapshot", async () => {
   const created = await admin("POST", "admin/results", {

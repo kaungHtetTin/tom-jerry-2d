@@ -63,6 +63,14 @@ final class Lottery
             'next' => $next, 'pollSeconds' => (int) config('lottery.poll_seconds', 3)];
     }
 
+    public static function adminDay(string $date): array
+    {
+        $day = self::day($date);
+        $day['results'] = array_map(self::resultData(...), DB::fetchAll(
+            'SELECT * FROM lottery_results WHERE draw_date = ? ORDER BY draw_time, id', [$date]));
+        return $day;
+    }
+
     public static function calendar(string $month): array
     {
         if (!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D', $month)) {
@@ -146,12 +154,10 @@ final class Lottery
                 $date = Api::date($data['date'] ?? null);
                 $schedule = DB::fetch('SELECT * FROM lottery_schedules WHERE id = ? AND active = 1 AND deleted_at IS NULL', [Api::id($data['scheduleId'] ?? null)]);
                 if (!$schedule) Api::invalid('scheduleId', 'အသုံးပြုနိုင်သော အချိန်ဇယား ရွေးပေးပါ။');
-                if ($date . ' ' . $schedule['draw_time'] > $now->format('Y-m-d H:i:s')) {
-                    Api::invalid('date', 'ထီထွက်ချိန် မရောက်သေးပါ။ အချိန်ရောက်မှ ထုတ်ပြန်နိုင်ပါမည်။');
-                }
+                $publishAt = max($date . ' ' . $schedule['draw_time'], $now->format('Y-m-d H:i:s'));
                 $id = DB::insert('lottery_results', ['schedule_id' => (int) $schedule['id'], 'draw_date' => $date,
                     'draw_time' => $schedule['draw_time'], 'draw_label' => $schedule['label'], 'number' => $number,
-                    'published_at' => $now->format('Y-m-d H:i:s'), 'updated_at' => $now->format('Y-m-d H:i:s')]);
+                    'published_at' => $publishAt, 'updated_at' => $now->format('Y-m-d H:i:s')]);
             }
         } catch (\PDOException $e) {
             if ($e->getCode() === '23000') json_response(['message' => 'ဒီအချိန်အတွက် ထွက်ဂဏန်း ထည့်ထားပြီးပါပြီ။ ပြင်ဆင်ရန်ကို အသုံးပြုပါ။'], 409);

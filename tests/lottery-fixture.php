@@ -11,6 +11,23 @@ if (env('APP_ENV') !== 'testing' || !preg_match('/^lottery_tj_test_[a-z0-9_]+$/D
     throw new RuntimeException('Fixtures may only use an isolated lottery_tj_test_* database.');
 }
 $action = $argv[1] ?? 'seed';
+if ($action === 'verify-release') {
+    $row = DB::fetch('SELECT * FROM lottery_results WHERE id = ?', [(int) ($argv[2] ?? 0)]);
+    $due = new DateTimeImmutable($row['draw_date'] . ' ' . $row['draw_time']);
+    $checks = [];
+    foreach ([-1, 0, 1] as $offset) {
+        $_ENV['LOTTERY_TEST_NOW'] = $due->modify("{$offset} seconds")->format('Y-m-d H:i:s');
+        $visible = $offset >= 0;
+        $results = \App\Services\Lottery::results($row['draw_date']);
+        $checks[] = in_array((int) $row['id'], array_column($results, 'id'), true) === $visible;
+        $calendar = \App\Services\Lottery::calendar(substr($row['draw_date'], 0, 7));
+        $checks[] = in_array($row['draw_date'], array_column($calendar['days'], 'date'), true) === $visible;
+        $history = \App\Services\Lottery::history(null);
+        $checks[] = in_array($row['draw_date'], array_column($history['days'], 'date'), true) === $visible;
+    }
+    echo json_encode($checks);
+    exit;
+}
 if ($action === 'ui-reset') {
     DB::statement('DELETE FROM lottery_results');
     DB::statement('DELETE FROM lottery_schedules');

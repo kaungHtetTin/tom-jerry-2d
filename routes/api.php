@@ -17,6 +17,7 @@ $router->post('/api/admin/login', [Lottery::class, 'login']);
 $router->post('/api/admin/logout', [Lottery::class, 'logout'], true);
 $router->post('/api/admin/password', [Lottery::class, 'password'], true);
 $router->get('/api/admin/schedules', [Lottery::class, 'schedules'], true);
+$router->get('/api/admin/results', [Lottery::class, 'adminDay'], true);
 $router->post('/api/admin/schedules', [Lottery::class, 'createSchedule'], true);
 $router->add('PUT', '/api/admin/schedules/{id}', [Lottery::class, 'updateSchedule'], true);
 $router->add('DELETE', '/api/admin/schedules/{id}', [Lottery::class, 'deleteSchedule'], true);

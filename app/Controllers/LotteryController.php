@@ -29,6 +29,7 @@ final class LotteryController
     public function logout(): never { AdminAuth::logout(); }
     public function password(): never { AdminAuth::changePassword(Api::body()); }
     public function schedules(): never { json_response(['schedules' => Lottery::schedules(true)]); }
+    public function adminDay(): never { json_response(Lottery::adminDay(Api::date($_GET['date'] ?? Lottery::now()->format('Y-m-d')))); }
     public function createSchedule(): never { json_response(['schedule' => Lottery::saveSchedule(Api::body())], 201); }
     public function updateSchedule(string $id): never { json_response(['schedule' => Lottery::saveSchedule(Api::body(), Api::id($id))]); }
     public function deleteSchedule(string $id): never { Lottery::deleteSchedule(Api::id($id)); json_response(['message' => 'အချိန်ဇယား ဖျက်ပြီးပါပြီ။ ယခင်ထွက်ဂဏန်းများ ဆက်ရှိပါမည်။']); }
