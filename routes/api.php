@@ -13,6 +13,8 @@ $router->get('/api/results', [Lottery::class, 'day']);
 $router->get('/api/results/{id}', [Lottery::class, 'result']);
 $router->get('/api/calendar', [Lottery::class, 'calendar']);
 $router->get('/api/history', [Lottery::class, 'history']);
+$router->get('/api/announcement', [Lottery::class, 'announcement']);
+$router->add('PUT', '/api/admin/announcement', [Lottery::class, 'saveAnnouncement'], true);
 $router->post('/api/admin/login', [Lottery::class, 'login']);
 $router->post('/api/admin/logout', [Lottery::class, 'logout'], true);
 $router->post('/api/admin/password', [Lottery::class, 'password'], true);

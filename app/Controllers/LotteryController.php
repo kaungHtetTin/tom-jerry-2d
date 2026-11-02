@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Services\AdminAuth;
+use App\Services\Announcement;
 use App\Services\Lottery;
 use App\Support\Api;
 use Mini\Csrf;
 
 final class LotteryController
 {
+    public function announcement(): never { json_response(Announcement::get()); }
+    public function saveAnnouncement(): never { json_response(Announcement::save(Api::body())); }
     public function day(): never { json_response(Lottery::day(Api::date($_GET['date'] ?? Lottery::now()->format('Y-m-d')))); }
     public function result(string $id): never
     {

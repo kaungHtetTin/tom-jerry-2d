@@ -109,6 +109,7 @@ test("all admin operations reject anonymous requests", async () => {
   for (const [method, path, data] of [
     ["GET", "admin/schedules"],
     ["GET", "admin/results"],
+    ["PUT", "admin/announcement", { message: "Unauthorized" }],
     ["POST", "admin/results", {}],
     ["PUT", "admin/results/1", {}],
     ["DELETE", "admin/results/1"],
@@ -147,6 +148,22 @@ test("login requires CSRF and accepts only the single valid admin", async () => 
   assert.deepEqual(session.data.admin, { id: 1, username: "admin" });
   schedules = (await admin("GET", "admin/schedules")).data.schedules;
 });
+test("announcements support Burmese, require CSRF, validate input and can be cleared", async () => {
+  assert.deepEqual((await client()("GET", "announcement")).data, { message: "" });
+  assert.equal((await admin("PUT", "admin/announcement", { message: "Blocked" }, false)).status, 419);
+  for (const message of [null, 123, [], "က".repeat(1001)]) {
+    assert.equal((await admin("PUT", "admin/announcement", { message })).status, 422);
+  }
+  const message = "တပင်ရွှေထီး ကြေညာချက် <script>alert(1)</script>";
+  const saved = await admin("PUT", "admin/announcement", { message: `  ${message}\n ` });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.data.message, message);
+  assert.deepEqual((await client()("GET", "announcement")).data, { message });
+  assert.equal((await admin("PUT", "admin/announcement", { message: "က".repeat(1000) })).status, 200);
+  assert.equal((await admin("PUT", "admin/announcement", { message: " \n " })).status, 200);
+  assert.deepEqual((await client()("GET", "announcement")).data, { message: "" });
+});
+
 test("schedule CRUD validates times and rejects duplicates", async () => {
   assert.equal(
     (await admin("POST", "admin/schedules", { time: "25:00" })).status,
